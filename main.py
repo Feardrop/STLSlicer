@@ -189,7 +189,7 @@ class STLSlicer:
 
 
 if __name__ == '__main__':
-    file = 'res/stl/AMCOCS_002.stl'
+    file = 'res/stl/EXAMPLE.stl'
 
     slicer = STLSlicer(file)
     slicer.slice_mesh(distance=0.3)
