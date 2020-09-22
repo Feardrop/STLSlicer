@@ -72,6 +72,28 @@ class STLSlicer:
         """
         Slice meshes with one or multiple arbitrary planes and return the resulting surface
 
+        +++
+        Uses: Trimesh.section_multiplane()`
+
+            Returns multiple parallel cross sections of the current mesh in 2D.
+
+            Parameters
+            ------------
+            plane_normal: (3) vector for plane normal
+              Normal vector of section plane
+            plane_origin : (3, ) float
+              Point on the cross section plane
+            heights : (n, ) float
+              Each section is offset by height along
+              the plane normal.
+
+            Returns
+            ---------
+            paths : (n, ) Path2D or None
+              2D cross sections at specified heights.
+              path.metadata['to_3D'] contains transform
+              to return 2D section back into 3D space.
+        +++
 
         :return:
         """
@@ -88,24 +110,6 @@ class STLSlicer:
         log.debug(f"Layer heights between {z_list[0]}{self.mesh.units} and {z_list[-1]}{self.mesh.units}. "
                   f"Distance: {distance}{self.mesh.units}. Count: {len(z_list)}.")
 
-        # Return multiple parallel cross sections of the current mesh in 2D.
-        #
-        # Parameters
-        # ------------
-        # plane_normal: (3) vector for plane normal
-        #   Normal vector of section plane
-        # plane_origin : (3, ) float
-        #   Point on the cross section plane
-        # heights : (n, ) float
-        #   Each section is offset by height along
-        #   the plane normal.
-        #
-        # Returns
-        # ---------
-        # paths : (n, ) Path2D or None
-        #   2D cross sections at specified heights.
-        #   path.metadata['to_3D'] contains transform
-        #   to return 2D section back into 3D space.
         slices_2D = self.mesh.section_multiplane(
             plane_origin=origin,
             plane_normal=[0, 0, 1],
@@ -119,17 +123,14 @@ class STLSlicer:
 
         return layers
 
-    def export_slices(self, exp_type='json', layers=None):
+    def export_layers(self, exp_type='json', layers=None):
         """
-        Exports all
+        Exports all layers. Possible file-types: `json`, `dxf`, `svg`.
 
-        :param layers:
-        :param exp_type:
-        :return:
+        :param layers: List of `trimesh.Path2D` objects.
+        :param exp_type: [`json`, `dxf`, `svg`]
+        :return: True if successful.
         """
-        # ToDo: add exp_types
-        # file_obj (None, str, or file object) – File object or string to export to
-        # file_type (None or str) – Type of file: dxf, dict, svg
 
         layers = layers or self.layers
 
@@ -148,6 +149,8 @@ class STLSlicer:
                 exp_file.write(exp_string)
                 log.debug(f'Export to {exp_filename} finished.')
 
+            return True
+
         elif exp_type in ['dxf', 'svg']:
             # make directory for multiple files according to expansion type
             while True:
@@ -161,6 +164,7 @@ class STLSlicer:
 
             base_name = os.path.split(self.filename)[1]
 
+            # export to visual file-types
             with open(f'{dir_name}/{base_name}.json', 'w') as json_file:
                 json_dict = slice_data.copy()
                 layers = json_dict.pop('layers')
@@ -177,8 +181,11 @@ class STLSlicer:
                 exp_string = json.dumps(json_dict, cls=util.NumpyArrayEncoder, indent=2)
                 json_file.write(exp_string)
                 log.debug(f'Export to {dir_name} finished.')
+            return True
+
         else:
             log.error(f"Extension '{exp_type}' not supported. Currently supported: ['json', 'dxf', 'svg']")
+            return False
 
 
 if __name__ == '__main__':
@@ -186,4 +193,4 @@ if __name__ == '__main__':
 
     slicer = STLSlicer(file)
     slicer.slice_mesh(distance=0.3)
-    slicer.export_slices('json')
+    slicer.export_layers('json')
