@@ -199,7 +199,3 @@ class STLSlicer:
                 f"Extension '{exp_type}' not supported. Currently supported: ['json', 'dxf', 'svg']"
             )
             return False
-
-
-if __name__ == "__main__":
-
