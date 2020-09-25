@@ -11,9 +11,9 @@ class NumpyArrayEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif is_instance_named(obj, 'bool_'):
+        elif is_instance_named(obj, "bool_"):
             return bool(str(obj))
-        elif is_instance_named(obj, 'Path2D'):
+        elif is_instance_named(obj, "Path2D"):
             return obj.to_dict()
         else:
             return super(NumpyArrayEncoder, self).default(obj)
@@ -64,7 +64,7 @@ def type_named(obj, name):
     for base in type_bases(obj):
         if base.__name__ == name:
             return base
-    raise ValueError('Unable to extract class of name ' + name)
+    raise ValueError("Unable to extract class of name " + name)
 
 
 def type_bases(obj, depth=4):
@@ -79,5 +79,5 @@ def type_bases(obj, depth=4):
     except IndexError:
         bases = []
     # we do the hasattr as None/NoneType can be in the list of bases
-    bases = [i for i in bases if hasattr(i, '__name__')]
+    bases = [i for i in bases if hasattr(i, "__name__")]
     return np.array(bases)
