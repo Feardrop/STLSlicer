@@ -1,39 +1,28 @@
-import os
-import logging
-from typing import *
-from datetime import datetime
 import json
-
+import logging
+import os
 import trimesh
-
-# from shapely.geometry import LineString
+from datetime import datetime
+from typing import Union, Text, List
 import util
 
 log = logging.getLogger("STL Slicer")
 log.setLevel(logging.DEBUG)
-
-# attach to logger so trimesh messages will be printed to console
 trimesh.util.attach_to_log()
 
 STR_DATETIME_FORMAT = "%Y%m%d-%H%M%S"
 
 
 class STLSlicer:
-    def __init__(self, f=None):
+    def __init__(self):
         self.layers: dict = {}
         self.distance: float
-        self.full_filename: Text
-        self.filename: Text
+        self.full_filename: Text = ""
+        self.filename: Text = ""
         self.mesh = None
-        self.mesh_watertight = False
+        self.mesh_watertight: bool = False
 
-        if f:
-            try:
-                self.load_mesh(f)
-            except Exception as e:
-                log.info(f"File '{f}' not loaded. ERROR: {e}")
-
-    def load_mesh(self, f):
+    def load_mesh(self, f: Union[str, bytes, os.PathLike]):
         """
         :param f: Filename
         Import meshes from binary/ASCII STL, Wavefront OBJ, ASCII OFF,
@@ -48,28 +37,19 @@ class STLSlicer:
         """
         self.full_filename = f
         self.filename = os.path.splitext(f)[0]
+        try:
+            self.mesh = trimesh.load(f, process=False)
+            self.mesh.units = "mm"
+            log.info(f"File '{f}' loaded. Units set to '{self.mesh.units}'.")
+        except Exception as e:
+            log.info(f"File '{f}' not loaded. ERROR: {e}")
+            raise e
 
-        self.mesh = trimesh.load(f)
-        self.mesh.units = "mm"
-        log.info(f"File '{f}' loaded. Units set to '{self.mesh.units}'.")
-
-        if not self.mesh.is_watertight:
-            log.debug(f"Mesh not yet watertight. Filling holes.")
-            if not self.mesh.fill_holes:
-                log.debug(f"Mesh not yet watertight. Fixing normals.")
-                if not self.mesh.fix_normals:
-                    log.debug(f"Mesh is not watertight. Not fixed.")
-                else:
-                    self.mesh_watertight = True
-            else:
-                self.mesh_watertight = True
-        else:
+        if repair_mesh_watertight(self.mesh):
             self.mesh_watertight = True
-
-        if self.mesh_watertight:
             log.debug(f"Mesh is watertight.")
 
-    def slice_mesh(self, distance=None):
+    def slice_mesh(self, distance: float = None):
         """
         Slice meshes with one or multiple arbitrary planes and return the
         resulting surface
@@ -103,11 +83,11 @@ class STLSlicer:
 
         # bounds = [[x_min,y_min,z_min],
         #           [x_max,y_max,z_max]]
-        bounds = self.mesh.bounds
-        z_max = bounds[1, 2]  # type:float
-
-        origin = list(self.mesh.centroid[:2]) + [0]
-        no_of_planes = int(z_max / distance)
+        bounds: List = self.mesh.bounds
+        z_min: float = bounds[0, 2]
+        z_max: float = bounds[1, 2]
+        origin = list(self.mesh.centroid[:2]) + [z_min]
+        no_of_planes = int((z_max - z_min) / distance)
         z_list = [i * distance for i in range(no_of_planes + 1)]
         log.debug(
             f"Layer heights between {z_list[0]}{self.mesh.units} and "
@@ -127,7 +107,7 @@ class STLSlicer:
 
         return layers
 
-    def export_layers(self, exp_type="json", layers=None):
+    def export_layers(self, exp_type: Text = "json", layers=None):
         """
         Exports all layers. Possible file-types: `json`, `dxf`, `svg`.
 
@@ -174,7 +154,7 @@ class STLSlicer:
             base_name = os.path.split(self.filename)[1]
 
             # export to visual file-types
-            with open(f"{dir_name}/{base_name}.json", "w") as json_file:
+            with open(f"{dir_name}/{base_name}_info.json", "w") as json_file:
                 json_dict = slice_data.copy()
                 layers = json_dict.pop("layers")
                 json_dict["files"] = {}
@@ -186,16 +166,30 @@ class STLSlicer:
                         json_dict["files"][height] = layer_filename_full
                     except AttributeError:
                         log.debug(
-                            f"{layer_filename_full} not created due to no data to display."
+                            f"{layer_filename_full} not created. No data to display."
                         )
 
                 exp_string = json.dumps(json_dict, cls=util.NumpyArrayEncoder, indent=2)
                 json_file.write(exp_string)
                 log.debug(f"Export to {dir_name} finished.")
+
             return True
 
         else:
             log.error(
-                f"Extension '{exp_type}' not supported. Currently supported: ['json', 'dxf', 'svg']"
+                f"Extension '{exp_type}' not supported. "
+                f"Currently supported: ['json', 'dxf', 'svg']"
             )
+
             return False
+
+
+def repair_mesh_watertight(mesh):
+    if not mesh.is_watertight:
+        log.debug(f"Mesh not watertight. Fixing normals.")
+        if not mesh.fix_normals:
+            log.debug(f"Mesh not watertight. Filling holes.")
+            if not mesh.fill_holes:
+                log.debug(f"Mesh is not watertight. Not fixed!")
+                return False
+    return True
